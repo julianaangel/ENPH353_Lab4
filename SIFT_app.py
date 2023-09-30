@@ -16,7 +16,7 @@ class My_App(QtWidgets.QMainWindow):
 		loadUi("./SIFT_app.ui", self) #contructor loads the .ui file
 
 		self._cam_id = 1
-		self._cam_fps = 10
+		self._cam_fps = 24
 		self._is_cam_enabled = False
 		self._is_template_loaded = False
 
@@ -65,7 +65,6 @@ class My_App(QtWidgets.QMainWindow):
 	def SLOT_query_camera(self):
 		ret, frame = self._camera_device.read()
 		#TODO run SIFT on the captured frame
-
 		target_img = cv2.imread(self.template_path, cv2.IMREAD_GRAYSCALE)#image we're looking for
 
 		# Features detecting, load algorthm
@@ -90,16 +89,10 @@ class My_App(QtWidgets.QMainWindow):
 				#when you decrease the coefficient we get less false matches
 				good_points.append(m)
 
-		#img3 = cv2.drawMatches(img,kp_image,grayframe, kp_grayframe,good_points,grayframe)
-		#draws the matches
-
-		#cv2.imshow("Image", img)
-		#cv2.imshow("grayFrame", grayframe)
-		#cv2.imshow("img3", img3)
-		#shows the matches
+		
 
 		#homography
-		if len(good_points) > 10:#if we find at least 10 matches, draw homogtaphy
+		if len(good_points) > 7:#if we find at least 10 matches, draw homogtaphy
 			#extracting position of points of the query image
 			query_pts = np.float32([kp_image[m.queryIdx].pt for m in good_points]).reshape(-1,1,2)#format that we want to extract in
 			#query_idx gives us position of points in query image
@@ -115,11 +108,19 @@ class My_App(QtWidgets.QMainWindow):
 			dst = cv2.perspectiveTransform(pts,matrix)#passing the points with the height and width of original image
 			
 			#now we can draw the lines on object detected
-			frame = cv2.polylines(frame,[np.int32(dst)], True, (255,0,0),3)#pixel must be integer number
+			display = cv2.polylines(frame,[np.int32(dst)], True, (255,0,0),3)#pixel must be integer number
+
+			pixmap = self.convert_cv_to_pixmap(display)
 			#close lines is true, blue lines, thickness 3
 		#end of code
 
-		pixmap = self.convert_cv_to_pixmap(frame)
+		else:
+			#create a frame large enough to have the target image and the live frame side by side with good matches drawn
+
+			bigframe = np.zeros((max(target_img.shape[0],grayframe.shape[0]), target_img.shape[1]+grayframe.shape[1], 3), np.uint8)
+			bigframe = cv2.drawMatches(target_img,kp_image,frame, kp_grayframe,good_points,frame)
+			pixmap = self.convert_cv_to_pixmap(bigframe)
+
 		self.live_image_label.setPixmap(pixmap)
 	#turns timer on or off(and changes lable on button)
 	def SLOT_toggle_camera(self):
