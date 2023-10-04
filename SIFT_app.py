@@ -80,26 +80,34 @@ class My_App(QtWidgets.QMainWindow):
 		grayframe = cv2.cvtColor(frame,cv2.COLOR_BGR2GRAY)
 
 		kp_grayframe, descriptor_grayframe = sift.detectAndCompute(grayframe,None)
+
+		#k nearest neighbours - for every point in the image we find 
 		matches = flann.knnMatch(descriptor_image,descriptor_grayframe,k=2)#finds matches: compares descriptors
+		#have a point in template, and you have 2 other points that look very similar, this is hard to work with
+		#only want distinct points
 		
-		good_points = []
+		unique_points = []
 		for m, n in matches:#m is query image, n is object from train image (grayframe)
-			if m.distance < 0.6*n.distance:#ratio test: the lower the better the match
-				#to avoid false results we take only descriptors with only short distances between them
+			if m.distance < 0.6*n.distance:
+				#want to take m when it is much shorter than n because good points are the ones that are most unique
+				#distance is distance between descriptor of match and descriptor of keypoint
+				#distance between vectors that represent colour variants
 				#when you decrease the coefficient we get less false matches
-				good_points.append(m)
+				unique_points.append(m)
 
 		
 
 		#homography
-		if len(good_points) > 7:#if we find at least 10 matches, draw homogtaphy
+		if len(unique_points) > 7:#if we find at least 7 matches, draw homogtaphy
 			#extracting position of points of the query image
-			query_pts = np.float32([kp_image[m.queryIdx].pt for m in good_points]).reshape(-1,1,2)#format that we want to extract in
+			query_pts = np.float32([kp_image[m.queryIdx].pt for m in unique_points]).reshape(-1,1,2)#format that we want to extract in
 			#query_idx gives us position of points in query image
 			#reshape is the way we change the form of the array
-			train_pts = np.float32([kp_grayframe[m.trainIdx].pt for m in good_points]).reshape(-1,1,2)
+			train_pts = np.float32([kp_grayframe[m.trainIdx].pt for m in unique_points]).reshape(-1,1,2)
 
 			matrix, mask = cv2.findHomography(query_pts,train_pts,cv2.RANSAC, 5.0)#matrix can let us show the object in its perspective
+			# RANSAC fits models in the presence of many data outliers
+			#agrees on the linear transformation
 			matches_mask = mask.ravel().tolist()
 
 			#perspective transform
@@ -118,7 +126,7 @@ class My_App(QtWidgets.QMainWindow):
 			#create a frame large enough to have the target image and the live frame side by side with good matches drawn
 
 			bigframe = np.zeros((max(target_img.shape[0],grayframe.shape[0]), target_img.shape[1]+grayframe.shape[1], 3), np.uint8)
-			bigframe = cv2.drawMatches(target_img,kp_image,frame, kp_grayframe,good_points,frame)
+			bigframe = cv2.drawMatches(target_img,kp_image,frame, kp_grayframe,unique_points,frame)
 			pixmap = self.convert_cv_to_pixmap(bigframe)
 
 		self.live_image_label.setPixmap(pixmap)
@@ -132,6 +140,7 @@ class My_App(QtWidgets.QMainWindow):
 			self._timer.start()
 			self._is_cam_enabled = True
 			self.toggle_cam_button.setText("&Disable camera")
+
 #instantiate myApp class
 if __name__ == "__main__":
 	app = QtWidgets.QApplication(sys.argv)
